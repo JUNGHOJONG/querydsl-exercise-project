@@ -22,9 +22,13 @@ public class QuerydslBasicTest {
     @PersistenceContext
     EntityManager em;
 
+    JPAQueryFactory factory;
+
     // 만약에 Team 과 Member 를 영속성에 넣는 순서가 바뀌면 어떻게 될까?? ->순서는 상관없음
     @BeforeEach
     public void before() {
+        factory = new JPAQueryFactory(em);
+
         Team teamA = new Team("teamA");
         Team teamB = new Team("teamB");
         em.persist(teamA);
@@ -53,16 +57,27 @@ public class QuerydslBasicTest {
         assertThat(findMember.getUsername()).isEqualTo("member1");
     }
 
-    @DisplayName("querydsl 테스트")
+    @DisplayName("querydsl 테스트 - QMember 기본 인스턴스 사용")
     @Test
     public void startQuerydsl() {
         // member1 을 찾아라
-        JPAQueryFactory factory = new JPAQueryFactory(em);
-
         QMember member = QMember.member;
 
         Member findMember = factory.selectFrom(member)
                 .where(member.username.eq("member1"))
+                .fetchOne();
+
+        assertThat(findMember.getUsername()).isEqualTo("member1");
+    }
+
+    @DisplayName("querydsl 테스트2 - QMember 별칭 사용")
+    @Test
+    public void startQuerydsl2() {
+        QMember m = new QMember("m");
+
+        Member findMember = factory.select(m)
+                .from(m)
+                .where(m.username.eq("member1"))
                 .fetchOne();
 
         assertThat(findMember.getUsername()).isEqualTo("member1");
