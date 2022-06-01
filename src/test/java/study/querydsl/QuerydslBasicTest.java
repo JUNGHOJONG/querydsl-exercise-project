@@ -2,6 +2,8 @@ package study.querydsl;
 
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
+import com.querydsl.core.types.dsl.CaseBuilder;
+import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
@@ -168,8 +170,8 @@ public class QuerydslBasicTest {
                 .offset(1)
                 .limit(3)
                 .fetch(); // 4 3 2 1
-        assertThat(results.size()).isEqualTo(3);
-        assertThat(results.get(1).getUsername()).isEqualTo("member3");
+        assertThat(results.size()).isEqualTo(3); //
+        assertThat(results.get(0).getUsername()).isEqualTo("member3");
     }
 
     @DisplayName("페이지 전제 조회")
@@ -442,5 +444,91 @@ public class QuerydslBasicTest {
             System.out.println("age = " + tuple.get(select(memberSub.age.avg())
                     .from(memberSub)));
         }
+    }
+
+    @DisplayName("select, 조건절(where), order by 에서 사용 가능")
+    @Test
+    public void testCaseInSelect() {
+        List<String> results = factory
+                .select(member.age
+                        .when(10).then("열살")
+                        .when(20).then("스무살")
+                        .otherwise("기타"))
+                .from(member)
+                .fetch();
+
+        assertThat(results.get(0)).isEqualTo("열살");
+        assertThat(results.get(3)).isEqualTo("기타");
+    }
+
+    @DisplayName("case 문 좀더 복잡한 표현을 원할 때")
+    @Test
+    public void testCaseInSelectMoreComplex() {
+        final List<String> results = factory
+                .select(new CaseBuilder()
+                        .when(member.age.between(0, 20)).then("0-20살")
+                        .when(member.age.between(21, 30)).then("21-30살")
+                        .otherwise("기타"))
+                .from(member)
+                .fetch();
+
+        assertThat(results.get(0)).isEqualTo("0-20살");
+        assertThat(results.get(1)).isEqualTo("0-20살");
+        assertThat(results.get(2)).isEqualTo("21-30살");
+        assertThat(results.get(3)).isEqualTo("기타");
+    }
+
+    @DisplayName("orderBy 에서 Case 문과 함께 사용하기")
+    @Test
+    public void testCaseInSelectWithOrderBy() {
+        // 각 구간별 소트를 위한 우선순위를 정한 객체를 만든다
+        final NumberExpression<Integer> rankPath = new CaseBuilder()
+                .when(member.age.between(0, 20)).then(2)
+                .when(member.age.between(21, 30)).then(3)
+                .otherwise(1);
+
+        final List<Tuple> results = factory.select(
+                member.age, member.username, rankPath)
+                .from(member)
+                .orderBy(rankPath.asc())
+                .fetch();
+
+        for (Tuple tuple : results) {
+            System.out.println("age = " + tuple.get(member.age));
+            System.out.println("username = " + tuple.get(member.username));
+            System.out.println("rankPath = " + tuple.get(rankPath));
+        }
+        assertThat(results.get(0).get(member.username)).isEqualTo("member4");
+    }
+
+    /**
+     * 최적화가 가능하면 SQL에 constant 값을 넘기지 않는다
+     */
+    @DisplayName("상수 더하기")
+    @Test
+    public void testConstantPlus() {
+        final Tuple tuple = factory
+                .select(
+                        member.username, Expressions.constant("A"))
+                .from(member)
+                .fetchFirst();
+
+        System.out.println("tuple = " + tuple);
+    }
+
+    /**
+     * 상수 더하는 것처럼 최적화가 어려우면 SQL에 constant 값을 넘긴다
+     */
+    @DisplayName("문자 더하기")
+    @Test
+    public void testCharacterConcat() {
+        final String result = factory
+                .select(
+                        member.username.concat("_").concat(member.age.stringValue()))
+                .from(member)
+                .where(member.username.eq("member4"))
+                .fetchFirst();
+
+        assertThat(result).isEqualTo("member4_40");
     }
 }
