@@ -1,5 +1,6 @@
 package study.querydsl;
 
+import com.querydsl.core.BooleanBuilder;
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.ExpressionUtils;
@@ -9,6 +10,7 @@ import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.core.types.dsl.NumberExpression;
 import com.querydsl.jpa.JPAExpressions;
 import com.querydsl.jpa.impl.JPAQueryFactory;
+import org.aspectj.apache.bcel.generic.IINC;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -616,5 +618,38 @@ public class QuerydslBasicTest {
                 .fetch();
 
         assertThat(results.size()).isEqualTo(4);
+    }
+
+    @DisplayName("동적 쿼리 - BooleanBuilder 사용(1)")
+    @Test
+    public void testQuerydslBeanPopulation7() throws Exception {
+        String usernameParam = "member1";
+        Integer ageParam = 10;
+
+        List<Member> results = searchMember1(usernameParam, ageParam);
+
+        assertThat(results.size()).isEqualTo(1);
+    }
+
+    private List<Member> searchMember1(String usernameCond, Integer ageCond) {
+        BooleanBuilder booleanBuilder = new BooleanBuilder();
+        if (usernameCond != null) {
+            booleanBuilder.and(member.username.eq(usernameCond));
+        }
+
+        if (ageCond != null) {
+            booleanBuilder.and(member.age.eq(ageCond));
+        }
+
+        return factory
+                .selectFrom(member)
+                .where(booleanBuilder)
+                .fetch();
+    }
+
+    @DisplayName("동적 쿼리 - Where  다중 파라미터 사용")
+    @Test
+    public void 동적쿼리_WhereParam() {
+
     }
 }
