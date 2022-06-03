@@ -2,6 +2,8 @@ package study.querydsl;
 
 import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
+import com.querydsl.core.types.ExpressionUtils;
+import com.querydsl.core.types.Projections;
 import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.core.types.dsl.NumberExpression;
@@ -11,20 +13,21 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
+import study.querydsl.dto.MemberDto;
+import study.querydsl.dto.QMemberDto;
+import study.querydsl.dto.UserDTO;
 import study.querydsl.entity.Member;
 import study.querydsl.entity.QMember;
 import study.querydsl.entity.QTeam;
 import study.querydsl.entity.Team;
 
-import javax.persistence.EntityManager;
-import javax.persistence.EntityManagerFactory;
-import javax.persistence.PersistenceContext;
-import javax.persistence.PersistenceUnit;
+import javax.persistence.*;
 import javax.transaction.Transactional;
 
 import java.util.List;
 
 import static com.querydsl.jpa.JPAExpressions.*;
+import static org.assertj.core.api.Assertions.as;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Transactional
@@ -530,5 +533,88 @@ public class QuerydslBasicTest {
                 .fetchFirst();
 
         assertThat(result).isEqualTo("member4_40");
+    }
+
+    @DisplayName("순수 JPA 에서 DTO 조회하기")
+    @Test
+    public void testSearchInJpaWithDTO() {
+        List<MemberDto> results = em.createQuery("select new study.querydsl.dto.MemberDto(m.username, m.age) " +
+                "from Member m", MemberDto.class).getResultList();
+
+        for (MemberDto memberDto : results) {
+            System.out.println("memberDto.getUsername() = " + memberDto.getUsername());
+            System.out.println("memberDto.getAge() = " + memberDto.getAge());
+        }
+
+        assertThat(results.size()).isEqualTo(4);
+    }
+
+    @DisplayName("Querydsl 빈 생성(1) - Bean population(프로퍼티 접근)")
+    @Test
+    public void testQuerydslBeanPopulation1() {
+        List<MemberDto> results = factory.select(Projections.bean(MemberDto.class, member.username, member.age))
+                .from(member)
+                .fetch();
+
+        assertThat(results).extracting("age").containsExactly(10, 20, 30, 40);
+    }
+
+    @DisplayName("Querydsl 빈 생성(2) - Bean population(필드 직접 접근)")
+    @Test
+    public void testQuerydslBeanPopulation2() {
+        List<MemberDto> results = factory.select(Projections.fields(MemberDto.class, member.username, member.age))
+                .from(member)
+                .fetch();
+
+        assertThat(results).extracting("age").containsExactly(10, 20, 30, 40);
+    }
+
+    @DisplayName("Querydsl - 별칭이 다를 때")
+    @Test
+    public void testQuerydslBeanPopulation3() {
+        QMember memberSub = new QMember("memberSub");
+
+        List<UserDTO> results = factory
+                .select(Projections.fields(UserDTO.class, member.username.as("name"),
+                        ExpressionUtils.as(select(memberSub.age.max()).from(memberSub), "age")
+                        )
+                ).from(member)
+                .fetch();
+
+        assertThat(results).extracting("name").containsExactly("member1", "member2", "member3", "member4");
+    }
+
+    @DisplayName("Querydsl - 생성자 사용")
+    @Test
+    public void testQuerydslBeanPopulation4() {
+        List<MemberDto> results = factory.select(Projections.constructor(MemberDto.class, member.username, member.age))
+                .from(member)
+                .fetch();
+
+        assertThat(results.size()).isEqualTo(4);
+    }
+
+    @DisplayName("Querydsl - 생성자 + @QueryProjection")
+    @Test
+    public void testQuerydslBeanPopulation5() {
+        List<MemberDto> results = factory.select(new QMemberDto(member.username, member.age))
+                .from(member)
+                .fetch();
+
+        assertThat(results.size()).isEqualTo(4);
+    }
+
+    @DisplayName("Querydsl - distinct")
+    @Test
+    public void testQuerydslBeanPopulation6() {
+        em.persist(new Member("member1", 50));
+        em.persist(new Member("member2", 30));
+
+        List<String> results = factory.select(member.username)
+                .distinct()
+                .from(member)
+                .fetch();
+
+        assertThat(results.size()).isEqualTo(4);
     }
 }
