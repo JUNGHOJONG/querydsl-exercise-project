@@ -5,6 +5,7 @@ import com.querydsl.core.QueryResults;
 import com.querydsl.core.Tuple;
 import com.querydsl.core.types.ExpressionUtils;
 import com.querydsl.core.types.Projections;
+import com.querydsl.core.types.dsl.BooleanExpression;
 import com.querydsl.core.types.dsl.CaseBuilder;
 import com.querydsl.core.types.dsl.Expressions;
 import com.querydsl.core.types.dsl.NumberExpression;
@@ -650,6 +651,144 @@ public class QuerydslBasicTest {
     @DisplayName("동적 쿼리 - Where  다중 파라미터 사용")
     @Test
     public void 동적쿼리_WhereParam() {
+        String usernameParam = null;
+        Integer ageParam = 10;
 
+        final List<Member> results = searchMember2(usernameParam, ageParam);
+
+        assertThat(results.size()).isEqualTo(1);
+    }
+
+    private List<Member> searchMember2(String usernameCond, Integer ageCond) {
+        return factory.selectFrom(member)
+                        .where(usernameEq(usernameCond), ageEq(ageCond))
+                        .fetch();
+    }
+
+    private BooleanExpression usernameEq(String usernameCond) {
+        return usernameCond != null ? member.username.eq(usernameCond) : null;
+    }
+
+    private BooleanExpression ageEq(Integer ageCond) {
+        return ageCond != null ? member.age.eq(ageCond) : null;
+    }
+
+    /**
+     * 장점: 여러가지 함수를 Composition 할 수 있다
+     * 단점: null 로 반환되는 것 주의해야함(NullPointerException)
+     */
+    private BooleanExpression allEq(String usernameCond, Integer ageCond) {
+        return usernameEq(usernameCond).and(ageEq(ageCond));
+    }
+
+    /**
+     * 벌크 연산: 대량 데이터 연산
+     */
+    @DisplayName("수정, 삭제 벌크 연산(1)")
+    @Test
+    public void testUpdate() {
+        final long count = factory
+                .update(member)
+                .set(member.username, "비회원")
+                .where(member.age.lt(28))
+                .execute();
+
+        // 콘텍스트 영속성 반영한다.
+        em.flush();
+        em.clear();
+
+        final List<Member> tempResults = factory.selectFrom(member).fetch();
+        for (Member member : tempResults) {
+            System.out.println("username = " + member.getUsername());
+            System.out.println("age = " + member.getAge());
+        }
+
+        final List<Member> results = factory.selectFrom(member)
+                .where(member.username.eq("비회원"))
+                .fetch();
+
+        assertThat(results.size()).isEqualTo(2);
+
+        assertThat(count).isEqualTo(2);
+    }
+
+    @DisplayName("수정, 삭제 벌크 연산(2)")
+    @Test
+    public void testUpdate2() {
+        final long count = factory.update(member)
+                .set(member.age, member.age.add(1))
+                .execute();
+
+        em.flush(); // -> db 에 반영된다.
+        em.clear(); // -> 영속성 컨텍스트가 비어있으면 db 의 데이터를 가져와서 조회한다. 만약에 clear를 하지 않으면 반영 전의 영속성 컨텍스트의 데이터가 조회됨
+
+        final List<Member> results = factory.selectFrom(member)
+                .fetch();
+
+        for (Member member : results) {
+            System.out.println("username = " + member.getUsername());
+            System.out.println("age = " + member.getAge());
+        }
+
+        assertThat(count).isEqualTo(4);
+    }
+
+    @DisplayName("쿼리 한번으로 대량 데이터 삭제")
+    @Test
+    public void testDelete() {
+        final long count = factory.delete(member)
+                .where(member.age.gt(18))
+                .execute();
+
+        em.flush();
+        em.clear();
+
+        final List<Member> results = factory.selectFrom(member)
+                .fetch();
+
+        for (Member member : results) {
+            System.out.println("username = " + member.getUsername());
+            System.out.println("age = " + member.getAge());
+        }
+
+        assertThat(count).isEqualTo(3);
+    }
+
+    @DisplayName("sql function(member -> M)")
+    @Test
+    public void testSqlFunctionWithReplace() {
+        final List<String> results = factory.select(Expressions.stringTemplate("function('replace', {0}, {1}, {2})", member.username, "member", "M"))
+                .from(member)
+                .fetch();
+
+        for (String s : results) {
+            System.out.println("s = " + s);
+        }
+    }
+
+    @DisplayName("sql function(소문자로 변경해서 비교)")
+    @Test
+    public void testSqlFunctionReplaceWithLower() {
+        final List<String> results = factory.select(member.username)
+                .from(member)
+                .where(member.username.eq(Expressions.stringTemplate("function('lower', {0})", member.username)))
+                .fetch();
+
+        for (String s : results) {
+            System.out.println("s = " + s);
+        }
+    }
+
+    @DisplayName("sql function(소문자로 변경해서 비교2)")
+    @Test
+    public void testSqlFunctionReplaceWithLower2() {
+        final List<String> results = factory.select(member.username)
+                .from(member)
+                .where(member.username.eq(member.username.lower()))
+                .fetch();
+
+        for (String s : results) {
+            System.out.println("s = " + s);
+        }
     }
 }
