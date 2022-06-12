@@ -3,6 +3,8 @@ package study.querydsl.repository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
 import study.querydsl.dto.MemberSearchCondition;
 import study.querydsl.dto.MemberTeamDto;
 import study.querydsl.entity.Member;
@@ -59,5 +61,52 @@ public class MemberRepositoryTest {
         final List<MemberTeamDto> results = memberRepository.search(condition);
 
         assertThat(results).extracting("age").containsExactly(10, 20);
+    }
+
+    @Test
+    public void searchPageSimpleTest() {
+        final Team teamA = new Team("teamA");
+        final Team teamB = new Team("teamB");
+
+        em.persist(teamA);
+        em.persist(teamB);
+
+        em.persist(new Member("member1", 10, teamA));
+        em.persist(new Member("member2", 20, teamA));
+        em.persist(new Member("member3", 30, teamB));
+        em.persist(new Member("member4", 40, teamB));
+
+        final MemberSearchCondition condition = new MemberSearchCondition();
+
+        final PageRequest pageable = PageRequest.of(0, 3);
+
+        final Page<MemberTeamDto> results = memberRepository.searchPageSimple(condition, pageable);
+
+        assertThat(results.getSize()).isEqualTo(3);
+        assertThat(results.getContent()).extracting("username").containsExactly("member1", "member2", "member3");
+    }
+
+    @Test
+    public void searchPageComplexTest() {
+        final Team teamA = new Team("teamA");
+        final Team teamB = new Team("teamB");
+
+        em.persist(teamA);
+        em.persist(teamB);
+
+        em.persist(new Member("member1", 10, teamA));
+        em.persist(new Member("member2", 20, teamA));
+        em.persist(new Member("member3", 30, teamB));
+        em.persist(new Member("member4", 40, teamB));
+
+        final MemberSearchCondition condition = new MemberSearchCondition();
+
+        final PageRequest pageable = PageRequest.of(0, 3);
+
+        final Page<MemberTeamDto> results = memberRepository.searchPageComplex(condition, pageable);
+
+        assertThat(results.getTotalElements()).isEqualTo(4);
+        assertThat(results.getSize()).isEqualTo(3);
+        assertThat(results.getContent()).extracting("username").containsExactly("member1", "member2", "member3");
     }
 }
