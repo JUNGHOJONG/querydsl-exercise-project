@@ -2,6 +2,7 @@ package study.querydsl.repository;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import study.querydsl.dto.MemberDto;
 import study.querydsl.dto.MemberSearchCondition;
 import study.querydsl.dto.MemberTeamDto;
 
@@ -14,4 +15,6 @@ public interface MemberRepositoryCustom {
     Page<MemberTeamDto> searchPageSimple(MemberSearchCondition condition, Pageable pageable);
 
     Page<MemberTeamDto> searchPageComplex(MemberSearchCondition condition, Pageable pageable);
+
+    List<MemberDto> searchWithOrderSpecifier(MemberSearchCondition condition, Pageable pageable);
 }
